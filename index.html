@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador: Flujo de Energía y Biomasa en Ecosistemas</title>
+<style>
+  :root {
+    --fondo: #e0f7fa;
+    --tarjeta: #ffffff;
+    --marino: #0a192f;
+    --aqua: #00d4ff;
+    --aqua-osc: #0097a7;
+    --verde: #66bb6a;
+    --verde-osc: #2e7d32;
+    --amarillo: #ffca28;
+    --naranja: #ff9800;
+    --rojo: #ef5350;
+    --sombra: 0 8px 30px rgba(0,77,64,0.15);
+    --radio: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+    color: #263238;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  @keyframes aparecer { from { opacity:0; transform: translateY(30px); } to { opacity:1; transform: translateY(0); } }
+  @keyframes bounce { 0%,100%{transform: translateY(0);} 50%{transform: translateY(-10px);} }
+  @keyframes pulse { 0%,100%{transform: scale(1);} 50%{transform: scale(1.05);} }
+  @keyframes shake { 0%,100%{transform: translateX(0);} 25%{transform: translateX(-6px);} 75%{transform: translateX(6px);} }
+  @keyframes flotar { 0%,100%{transform: translateY(0);} 50%{transform: translateY(-8px);} }
+  @keyframes arrow-bounce { 0%,100%{transform: translateY(0);} 50%{transform: translateY(8px);} }
+  @keyframes confetti-fall { 0%{transform: translateY(-20vh) rotate(0); opacity:1;} 100%{transform: translateY(110vh) rotate(720deg); opacity:0;} }
+  @keyframes wolf-walk { 0%{transform: translateX(-100px);} 100%{transform: translateX( calc(100vw + 100px) );} }
+  @keyframes wolf-leg-1 { 0%,100%{transform: rotate(20deg);} 50%{transform: rotate(-20deg);} }
+  @keyframes wolf-leg-2 { 0%,100%{transform: rotate(-20deg);} 50%{transform: rotate(20deg);} }
+  @keyframes wolf-leg-3 { 0%,100%{transform: rotate(15deg);} 50%{transform: rotate(-15deg);} }
+  @keyframes wolf-leg-4 { 0%,100%{transform: rotate(-15deg);} 50%{transform: rotate(15deg);} }
+  @keyframes wolf-tail { 0%,100%{transform: rotate(-5deg);} 50%{transform: rotate(5deg);} }
+  @keyframes wolf-head { 0%,100%{transform: rotate(0deg);} 50%{transform: rotate(2deg);} }
+
+  .anim-aparecer { animation: aparecer 0.7s ease-out both; }
+  .delay-1 { animation-delay: 0.15s; }
+  .delay-2 { animation-delay: 0.3s; }
+  .delay-3 { animation-delay: 0.45s; }
+  .delay-4 { animation-delay: 0.6s; }
+
+  header {
+    background: linear-gradient(90deg, var(--marino), #004d40);
+    color: white;
+    padding: 2rem 1rem 1rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  header h1 { font-size: 1.5rem; margin-bottom: 0.3rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+  header p { font-size: 0.95rem; opacity: 0.95; }
+  .meta-cabeza {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+  .meta-cabeza input {
+    border: none;
+    border-radius: 50px;
+    padding: 0.5rem 1rem;
+    background: rgba(255,255,255,0.25);
+    color: white;
+    font-weight: 600;
+    min-width: 160px;
+    text-align: center;
+  }
+  .meta-cabeza input::placeholder { color: rgba(255,255,255,0.7); }
+
+  /* Lobo SVG animado caminando */
+  .wolf-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .wolf-svg {
+    width: 80px;
+    height: 60px;
+    animation: wolf-walk 12s linear infinite;
+    position: absolute;
+    bottom: 0;
+  }
+  .wolf-svg .leg-1 { transform-origin: 25px 50px; animation: wolf-leg-1 0.6s ease-in-out infinite; }
+  .wolf-svg .leg-2 { transform-origin: 35px 50px; animation: wolf-leg-2 0.6s ease-in-out infinite; }
+  .wolf-svg .leg-3 { transform-origin: 55px 50px; animation: wolf-leg-3 0.6s ease-in-out infinite; }
+  .wolf-svg .leg-4 { transform-origin: 65px 50px; animation: wolf-leg-4 0.6s ease-in-out infinite; }
+  .wolf-svg .tail { transform-origin: 10px 30px; animation: wolf-tail 1s ease-in-out infinite; }
+  .wolf-svg .head { transform-origin: 70px 20px; animation: wolf-head 2s ease-in-out infinite; }
+
+  .contenedor { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+  .bloque {
+    background: var(--tarjeta);
+    border-radius: var(--radio);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--sombra);
+  }
+  .titulo-seccion {
+    color: var(--marino);
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .conceptos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+  .concepto-card {
+    background: linear-gradient(135deg, #e0f2f1, #ffffff);
+    border-radius: 14px;
+    padding: 1.2rem;
+    border: 2px solid #b2dfdb;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .concepto-card:hover { transform: translateY(-5px); box-shadow: 0 12px 25px rgba(0,188,212,0.2); }
+  .concepto-card h4 { color: var(--aqua-osc); margin-bottom: 0.4rem; font-size: 1.1rem; }
+  .concepto-card .detalle {
+    font-size: 0.95rem;
+    color: #455a64;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+  }
+  .concepto-card.expandido .detalle { max-height: 300px; margin-top: 0.5rem; }
+  .concepto-card .ver-mas { font-size: 0.8rem; color: var(--aqua-osc); font-weight: 700; margin-top: 0.3rem; display: block; }
+
+  .selector-tabs {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+  .tab-btn {
+    border: none;
+    border-radius: 50px;
+    padding: 0.8rem 1.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: #eceff1;
+    color: #546e7a;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .tab-btn:hover { background: #cfd8dc; transform: scale(1.05); }
+  .tab-btn.activo { background: var(--aqua); color: white; box-shadow: 0 4px 15px rgba(0,188,212,0.4); }
+
+  .slider-juguete {
+    background: linear-gradient(90deg, #e0f7fa, #b2ebf2);
+    border-radius: 14px;
+    padding: 1.2rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    border: 2px dashed var(--aqua);
+  }
+  .slider-juguete label { font-weight: 700; color: var(--marino); font-size: 1.1rem; display: block; margin-bottom: 0.6rem; }
+  .slider-juguete input[type=range] {
+    -webkit-appearance: none;
+    width: 90%;
+    max-width: 400px;
+    height: 18px;
+    border-radius: 50px;
+    background: linear-gradient(90deg, var(--verde), var(--amarillo), var(--naranja), var(--rojo));
+    outline: none;
+    cursor: pointer;
+  }
+  .slider-juguete input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid var(--aqua-osc);
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    transition: transform 0.1s;
+  }
+  .slider-juguete input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .valor-grande { font-size: 2rem; font-weight: 800; color: var(--aqua-osc); margin-top: 0.4rem; display: block; }
+
+  .sim-area { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
+  .sim-columna { flex: 1; min-width: 300px; max-width: 500px; }
+  .sim-titulo { text-align: center; font-weight: 800; font-size: 1.1rem; color: var(--marino); margin-bottom: 0.8rem; }
+
+  /* PIRÁMIDE HORIZONTAL: barras apiladas con badge FUERA */
+  .piramide {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 0.5rem 0;
+  }
+  .nivel-fila {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .nivel-trofico {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    color: white;
+    font-weight: 700;
+    border-radius: 10px;
+    transition: width 0.5s ease, opacity 0.4s;
+    position: relative;
+    overflow: hidden;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    height: 44px;
+    flex-shrink: 0;
+    padding: 0 12px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .nivel-trofico .emoji-nivel { font-size: 1.4rem; flex-shrink: 0; }
+  .nivel-trofico .nombre-nivel { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; }
+  .nivel-badge {
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(0,0,0,0.15);
+    color: var(--marino);
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .n-productores { background: linear-gradient(90deg, var(--verde-osc), var(--verde)); width: 100%; }
+  .n-c1 { background: linear-gradient(90deg, #9ccc65, #c5e1a5); color: #33691e; text-shadow: none; width: 75%; }
+  .n-c2 { background: linear-gradient(90deg, var(--naranja), #ffcc80); color: #4e342e; text-shadow: none; width: 55%; }
+  .n-c3 { background: linear-gradient(90deg, var(--rojo), #ef9a9a); color: #4e342e; text-shadow: none; width: 40%; }
+  .n-des { background: linear-gradient(90deg, #5d4037, #8d6e63); font-style: italic; font-size: 0.85rem; width: 85%; color: white; }
+
+  .detalle-org {
+    background: #fafafa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 0.8rem;
+    border-left: 4px solid var(--aqua-osc);
+  }
+  .detalle-org h5 { color: var(--marino); margin-bottom: 0.5rem; font-size: 0.95rem; }
+  .detalle-org ul { margin-left: 1.2rem; font-size: 0.9rem; color: #455a64; }
+  .detalle-org li { margin-bottom: 0.2rem; }
+
+  .canicas-area { margin-top: 1.5rem; text-align: center; }
+  .canicas-titulo { font-weight: 800; color: var(--marino); margin-bottom: 0.6rem; font-size: 1.05rem; }
+  .canicas-explica { font-size: 0.95rem; color: #546e7a; max-width: 500px; margin: 0 auto 1rem; }
+  .nivel-canica { display: flex; align-items: center; justify-content: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .canica-grid { display: inline-grid; grid-template-columns: repeat(10, 14px); gap: 3px; justify-content: center; transition: all 0.5s; }
+  .canica-grid.c1 { grid-template-columns: repeat(10, 14px); }
+  .canica-grid.c2 { grid-template-columns: repeat(3, 14px); }
+  .canica-grid.c3 { grid-template-columns: repeat(1, 14px); }
+  .canica {
+    width: 14px; height: 14px; border-radius: 50%;
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.15), 1px 1px 3px rgba(0,0,0,0.15);
+    transition: transform 0.3s, opacity 0.4s;
+    animation: aparecer 0.3s ease both;
+  }
+  .canica.prod { background: radial-gradient(circle at 30% 30%, #81c784, var(--verde-osc)); }
+  .canica.c1 { background: radial-gradient(circle at 30% 30%, #fff59d, #f9a825); }
+  .canica.c2 { background: radial-gradient(circle at 30% 30%, #ffcc80, var(--naranja)); }
+  .canica.c3 { background: radial-gradient(circle at 30% 30%, #ef9a9a, #c62828); }
+  .canica-leyenda { font-size: 0.85rem; font-weight: 700; min-width: 110px; text-align: left; }
+  .flecha-energia { font-size: 1.5rem; color: var(--aqua-osc); animation: arrow-bounce 1.2s infinite; }
+
+  .tabla-toggle {
+    background: var(--marino);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: 700;
+    margin: 1rem auto;
+    display: block;
+    transition: background 0.3s;
+  }
+  .tabla-toggle:hover { background: var(--aqua-osc); }
+  .tabla-datos { overflow: hidden; max-height: 0; transition: max-height 0.5s ease; }
+  .tabla-datos.abierta { max-height: 800px; }
+  .tabla-datos table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.5rem; }
+  .tabla-datos th, .tabla-datos td { padding: 0.6rem; border-bottom: 1px solid #e0e0e0; text-align: left; }
+  .tabla-datos th { background: #eceff1; color: var(--marino); font-weight: 700; }
+  .tabla-datos td:nth-child(3), .tabla-datos td:nth-child(4) { text-align: right; font-weight: 700; }
+  .tabla-datos tr:nth-child(even) { background: #fafafa; }
+
+  .calc-visual { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end; justify-content: center; }
+  .calc-input { flex: 1; min-width: 200px; }
+  .calc-input label { display: block; font-weight: 700; color: var(--marino); margin-bottom: 0.4rem; font-size: 0.95rem; }
+  .calc-input input[type=number], .calc-input select {
+    width: 100%; padding: 0.7rem; border-radius: 10px; border: 2px solid #b0bec5;
+    font-size: 1.1rem; font-weight: 700; color: var(--marino); text-align: center;
+    transition: border-color 0.3s;
+  }
+  .calc-input input[type=number]:focus, .calc-input select:focus { outline: none; border-color: var(--aqua); }
+
+  .medidor-comparativo { display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; margin-top: 1.5rem; }
+  .columna-medidor { text-align: center; flex: 1; min-width: 250px; }
+  .columna-medidor h4 { color: var(--marino); margin-bottom: 0.5rem; font-size: 1rem; }
+  .medidor { display: flex; align-items: flex-end; justify-content: center; gap: 1rem; height: 220px; }
+  .tubo {
+    width: 60px; border-radius: 10px 10px 0 0; background: #eceff1;
+    position: relative; overflow: hidden; transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.08);
+  }
+  .tubo-label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); font-size: 0.75rem; font-weight: 700; color: var(--marino); white-space: nowrap; }
+  .tubo-valor { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); font-size: 0.75rem; font-weight: 800; color: rgba(255,255,255,0.9); }
+  .liquido-ppb { background: linear-gradient(to top, var(--verde), #a5d6a7); width: 100%; position: absolute; bottom: 0; left: 0; transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .liquido-r { background: repeating-linear-gradient(45deg, #ef9a9a, #ef9a9a 5px, #e57373 5px, #e57373 10px); width: 100%; position: absolute; bottom: 0; left: 0; transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .liquido-ppn { background: linear-gradient(to top, var(--aqua), #80deea); width: 100%; position: absolute; bottom: 0; left: 0; transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .frase-resultado { text-align: center; margin-top: 2.5rem; font-size: 1.1rem; color: #37474f; font-weight: 600; min-height: 3rem; }
+  .frase-resultado strong { color: var(--aqua-osc); font-size: 1.3rem; display: block; margin-top: 0.3rem; }
+
+  .info-flotante {
+    background: linear-gradient(135deg, #fff8e1, #ffecb3);
+    border: 2px solid #ffc107;
+    border-radius: var(--radio);
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .info-flotante::before {
+    content: '\1F4A1';
+    position: absolute;
+    font-size: 4rem;
+    opacity: 0.1;
+    right: -5px; top: -10px;
+  }
+  .info-flotante h4 { color: #f57f17; margin-bottom: 0.5rem; font-size: 1.1rem; }
+  .info-flotante p { font-size: 0.95rem; color: #5d4037; }
+
+  .glosario-item { border: 1px solid #cfd8dc; border-radius: 12px; margin-bottom: 0.6rem; overflow: hidden; transition: box-shadow 0.3s; }
+  .glosario-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .glosario-header {
+    background: #eceff1; padding: 0.8rem 1rem; cursor: pointer; font-weight: 800; color: var(--marino);
+    display: flex; justify-content: space-between; align-items: center; user-select: none;
+  }
+  .glosario-body { padding: 1rem; background: white; display: none; font-size: 0.95rem; color: #455a64; }
+  .glosario-item.abierto .glosario-body { display: block; animation: aparecer 0.3s ease; }
+  .glosario-item.abierto .glosario-header::after { content: '▲'; }
+  .glosario-header::after { content: '▼'; font-size: 0.8rem; color: var(--aqua-osc); }
+
+  .quiz-pregunta {
+    background: #fafafa; border-radius: 14px; padding: 1.2rem; margin-bottom: 1.2rem;
+    border-left: 5px solid var(--aqua-osc); transition: transform 0.3s;
+  }
+  .quiz-pregunta:hover { transform: translateX(4px); }
+  .quiz-pregunta p { font-weight: 800; color: var(--marino); margin-bottom: 0.7rem; font-size: 1.05rem; }
+  .quiz-opcion {
+    display: block; padding: 0.7rem 1rem; margin-bottom: 0.4rem; border-radius: 10px;
+    border: 2px solid #e0e0e0; cursor: pointer; background: white; transition: all 0.2s;
+    font-weight: 600; color: #37474f;
+  }
+  .quiz-opcion:hover { border-color: var(--aqua); background: #e0f7fa; transform: scale(1.01); }
+  .quiz-opcion.bien { background: #c8e6c9; border-color: #4caf50; color: #1b5e20; animation: pulse 0.5s; }
+  .quiz-opcion.mal { background: #ffcdd2; border-color: #f44336; color: #b71c1c; animation: shake 0.4s; }
+  .retro { margin-top: 0.6rem; font-weight: 700; font-size: 0.95rem; display: none; padding: 0.6rem; border-radius: 8px; }
+  .retro.show { display: block; animation: aparecer 0.3s; }
+  .retro.bien { background: #e8f5e9; color: #2e7d32; }
+  .retro.mal { background: #ffebee; color: #c62828; }
+
+  .confeti-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; overflow: hidden; display: none; }
+  .confeti-container.activo { display: block; }
+  .confeti {
+    position: absolute; top: -20px; width: 10px; height: 10px; border-radius: 50%;
+    animation: confetti-fall 2.5s linear forwards;
+  }
+
+  footer {
+    background: var(--marino); color: white; text-align: center; padding: 2rem 1rem; font-size: 0.85rem;
+  }
+  footer strong { color: var(--aqua); }
+
+  @media (max-width: 600px) {
+    .sim-columna { min-width: 100%; }
+    .canica-grid { grid-template-columns: repeat(10, 10px); gap: 2px; }
+    .canica-grid.c1 { grid-template-columns: repeat(10, 10px); }
+    .canica-grid.c2 { grid-template-columns: repeat(3, 10px); }
+    .canica-grid.c3 { grid-template-columns: repeat(1, 10px); }
+    .canica { width: 10px; height: 10px; }
+    .valor-grande { font-size: 1.4rem; }
+    .medidor { gap: 0.6rem; height: 180px; }
+    .tubo { width: 45px; }
+    .nivel-trofico { height: 38px; padding: 0 8px; }
+    .nivel-trofico .emoji-nivel { font-size: 1.1rem; }
+    .nivel-trofico .nombre-nivel { font-size: 0.75rem; }
+    .nivel-badge { font-size: 0.7rem; padding: 2px 6px; }
+    .wolf-svg { width: 60px; height: 45px; }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="confeti-container" id="confetiBox"></div>
+
+<header class="anim-aparecer">
+  <h1>Simulador de Flujo de Energía y Biomasa</h1>
+  <p>Ecología DGETI / CETIS 43 &mdash; LAB. VIRTUAL ALVAREZ 2026</p>
+  <div class="meta-cabeza">
+    <input type="text" placeholder="Tu nombre" id="nombreAlumno">
+    <input type="text" placeholder="Grupo / Matrícula" id="grupoAlumno">
+  </div>
+  <!-- Lobo SVG animado caminando -->
+  <div class="wolf-container">
+    <svg class="wolf-svg" viewBox="0 0 80 60" xmlns="http://www.w3.org/2000/svg">
+      <g class="tail">
+        <path d="M8 30 Q 5 20 12 15 Q 15 18 12 25 Z" fill="#cfd8dc" stroke="#90a4ae" stroke-width="1"/>
+      </g>
+      <ellipse cx="45" cy="28" rx="22" ry="12" fill="#90a4ae" stroke="#78909c" stroke-width="1"/>
+      <g class="head">
+        <ellipse cx="68" cy="22" rx="10" ry="8" fill="#90a4ae" stroke="#78909c" stroke-width="1"/>
+        <polygon points="62,16 66,10 70,16" fill="#90a4ae" stroke="#78909c" stroke-width="1"/>
+        <polygon points="70,16 74,10 78,16" fill="#90a4ae" stroke="#78909c" stroke-width="1"/>
+        <circle cx="72" cy="20" r="1.5" fill="#37474f"/>
+        <circle cx="76" cy="20" r="1.5" fill="#37474f"/>
+        <polygon points="75,24 82,26 75,28" fill="#37474f"/>
+      </g>
+      <g class="leg-1">
+        <rect x="25" y="35" width="5" height="18" rx="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+      </g>
+      <g class="leg-2">
+        <rect x="35" y="35" width="5" height="18" rx="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+      </g>
+      <g class="leg-3">
+        <rect x="55" y="35" width="5" height="18" rx="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+      </g>
+      <g class="leg-4">
+        <rect x="65" y="35" width="5" height="18" rx="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+      </g>
+    </svg>
+  </div>
+</header>
+
+<div class="contenedor">
+
+  <div class="bloque anim-aparecer delay-1">
+    <div class="titulo-seccion">¿Qué vas a aprender?</div>
+    <p style="margin-bottom:1rem; font-size:1.05rem; color:#37474f;">
+      La energía en un ecosistema se comporta como la batería de tu celular: los productores (plantas y algas) la cargan con luz solar, pero en cada nivel de la cadena alimentaria se pierde gran parte. Si una planta acumula 1,000 unidades de energía, el herbívoro que se la come solo aprovecha 100, el carnívoro que se come al herbívoro solo 10, y el depredador tope apenas 1. Eso es la <strong>regla del 10%</strong> de eficiencia ecológica.
+    </p>
+  </div>
+
+  <div class="bloque anim-aparecer delay-2">
+    <div class="titulo-seccion">Conceptos Clave (dale click)</div>
+    <div class="conceptos-grid">
+      <div class="concepto-card" onclick="this.classList.toggle('expandido')">
+        <h4>Biomasa</h4>
+        <span class="ver-mas">Toca para ver &darr;</span>
+        <div class="detalle">
+          Es la cantidad total de materia orgánica viva presente en un área determinada. Se expresa en gramos por metro cuadrado (g/m²) o kilogramos por metro cuadrado (kg/m²). Incluye árboles, herbívoros, carnívoros, microbios y todo organismo con vida en ese momento.
+        </div>
+      </div>
+      <div class="concepto-card" onclick="this.classList.toggle('expandido')">
+        <h4>PPB y PPN</h4>
+        <span class="ver-mas">Toca para ver &darr;</span>
+        <div class="detalle">
+          <strong>Productividad Primaria Bruta (PPB):</strong> velocidad total a la que los productores convierten luz solar en materia orgánica por fotosíntesis.<br><br>
+          <strong>Respiración (R):</strong> energía que los propios productores consumen para vivir, crecer y respirar.<br><br>
+          <strong>Productividad Primaria Neta (PPN):</strong> materia que sobra disponible para el resto del ecosistema. <em>Fórmula: PPN = PPB &minus; R</em>.
+        </div>
+      </div>
+      <div class="concepto-card" onclick="this.classList.toggle('expandido')">
+        <h4>Eficiencia Ecológica (10%)</h4>
+        <span class="ver-mas">Toca para ver &darr;</span>
+        <div class="detalle">
+          Porcentaje promedio de energía o biomasa que se transfiere de un nivel trófico al siguiente. Aunque puede variar entre 5% y 20%, la media clásica es el <strong>10%</strong>. El 90% restante se pierde como calor metabólico, excretas o materia muerta que va a descomponedores.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bloque anim-aparecer delay-3">
+    <div class="titulo-seccion">Simulador Interactivo</div>
+
+    <div class="selector-tabs">
+      <button class="tab-btn activo" onclick="cambiarModo('terrestre')" id="tab-terrestre">Selva Monte Negro</button>
+      <button class="tab-btn" onclick="cambiarModo('acuatico')" id="tab-acuatico">Ecosistema Marino</button>
+      <button class="tab-btn" onclick="cambiarModo('comparar')" id="tab-comparar">Comparar ambos</button>
+    </div>
+
+    <div class="slider-juguete" id="cajaSlider">
+      <label id="etiquetaSlider">Ajusta la biomasa de productores en la Selva Baja Caducifolia de Monte Negro</label>
+      <input type="range" id="controlSlider" min="1000" max="20000" step="100" value="10000" oninput="actualizarSim()">
+      <span class="valor-grande" id="textoValor">10,000 g/m&sup2;</span>
+      <p style="font-size:0.8rem; color:#78909c; margin-top:0.5rem; font-style:italic;">
+        Nota: Los valores numéricos son <strong>aproximaciones didácticas</strong> basadas en literatura ecológica clásica (Odum, 1971; Whittaker, 1975), no mediciones exactas de campo.
+      </p>
+    </div>
+
+    <div class="sim-area" id="areaSimulacion"></div>
+  </div>
+
+  <div class="bloque anim-aparecer delay-4">
+    <div class="titulo-seccion">Laboratorio Comparativo: PPN en diferentes ecosistemas</div>
+    <p style="margin-bottom:1rem; color:#546e7a;">
+      Selecciona dos ecosistemas reales y compara su Productividad Primaria Neta (PPN). Los valores se precargan automáticamente; luego puedes modificarlos para experimentar.
+    </p>
+
+    <div class="calc-visual">
+      <div class="calc-input">
+        <label>Ecosistema A</label>
+        <select id="ecoA" onchange="precargarEco('A')">
+          <option value="">-- Selecciona --</option>
+          <option value="desierto">Desierto</option>
+          <option value="tundra">Tundra</option>
+          <option value="pastizal">Pastizal / Pradera</option>
+          <option value="matorral">Matorral xerófilo (Valle de Tehuacán)</option>
+          <option value="bosque">Bosque templado</option>
+          <option value="selva" selected>Selva baja caducifolia (Monte Negro)</option>
+          <option value="marino">Ecosistema marino costero</option>
+        </select>
+      </div>
+      <div class="calc-input">
+        <label for="ppbA">PPB A (g/m&sup2;/año)</label>
+        <input type="number" id="ppbA" value="18000" oninput="compararPPN()">
+      </div>
+      <div class="calc-input">
+        <label for="rA">Respiración R A (g/m&sup2;/año)</label>
+        <input type="number" id="rA" value="9000" oninput="compararPPN()">
+      </div>
+    </div>
+
+    <div class="calc-visual" style="margin-top:1rem;">
+      <div class="calc-input">
+        <label>Ecosistema B</label>
+        <select id="ecoB" onchange="precargarEco('B')">
+          <option value="">-- Selecciona --</option>
+          <option value="desierto">Desierto</option>
+          <option value="tundra">Tundra</option>
+          <option value="pastizal">Pastizal / Pradera</option>
+          <option value="matorral">Matorral xerófilo (Valle de Tehuacán)</option>
+          <option value="bosque">Bosque templado</option>
+          <option value="selva">Selva baja caducifolia (Monte Negro)</option>
+          <option value="marino" selected>Ecosistema marino costero</option>
+        </select>
+      </div>
+      <div class="calc-input">
+        <label for="ppbB">PPB B (g/m&sup2;/año)</label>
+        <input type="number" id="ppbB" value="20000" oninput="compararPPN()">
+      </div>
+      <div class="calc-input">
+        <label for="rB">Respiración R B (g/m&sup2;/año)</label>
+        <input type="number" id="rB" value="10000" oninput="compararPPN()">
+      </div>
+    </div>
+
+    <div style="text-align:center; margin:1.2rem 0;">
+      <button class="tab-btn activo" onclick="compararPPN()">Comparar PPN</button>
+    </div>
+
+    <div class="medidor-comparativo" id="comparadorBox">
+      <div class="columna-medidor">
+        <h4 id="tituloA">Selva baja caducifolia (Monte Negro)</h4>
+        <div class="medidor">
+          <div class="tubo" style="height:200px" id="tuboPPB_A">
+            <div class="liquido-ppb" id="liqPPB_A"></div>
+            <span class="tubo-label">PPB</span>
+            <span class="tubo-valor" id="valPPB_A">0</span>
+          </div>
+          <div style="font-size:2rem; font-weight:800; color:#90a4ae; align-self:center;">&minus;</div>
+          <div class="tubo" style="height:200px" id="tuboR_A">
+            <div class="liquido-r" id="liqR_A"></div>
+            <span class="tubo-label">R</span>
+            <span class="tubo-valor" id="valR_A">0</span>
+          </div>
+          <div style="font-size:2rem; font-weight:800; color:#90a4ae; align-self:center;">=</div>
+          <div class="tubo" style="height:200px; border:3px solid var(--aqua);" id="tuboPPN_A">
+            <div class="liquido-ppn" id="liqPPN_A"></div>
+            <span class="tubo-label" style="bottom:-30px; color:var(--aqua-osc);">PPN</span>
+            <span class="tubo-valor" id="valPPN_A">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="columna-medidor">
+        <h4 id="tituloB">Ecosistema marino costero</h4>
+        <div class="medidor">
+          <div class="tubo" style="height:200px" id="tuboPPB_B">
+            <div class="liquido-ppb" id="liqPPB_B"></div>
+            <span class="tubo-label">PPB</span>
+            <span class="tubo-valor" id="valPPB_B">0</span>
+          </div>
+          <div style="font-size:2rem; font-weight:800; color:#90a4ae; align-self:center;">&minus;</div>
+          <div class="tubo" style="height:200px" id="tuboR_B">
+            <div class="liquido-r" id="liqR_B"></div>
+            <span class="tubo-label">R</span>
+            <span class="tubo-valor" id="valR_B">0</span>
+          </div>
+          <div style="font-size:2rem; font-weight:800; color:#90a4ae; align-self:center;">=</div>
+          <div class="tubo" style="height:200px; border:3px solid var(--aqua);" id="tuboPPN_B">
+            <div class="liquido-ppn" id="liqPPN_B"></div>
+            <span class="tubo-label" style="bottom:-30px; color:var(--aqua-osc);">PPN</span>
+            <span class="tubo-valor" id="valPPN_B">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frase-resultado" id="fraseComparativa">
+      Selecciona dos ecosistemas y presiona "Comparar PPN" para ver cuál es más productivo.
+    </div>
+  </div>
+
+  <div class="bloque anim-aparecer">
+    <div class="info-flotante">
+      <h4>¿Sabías que...?</h4>
+      <p>
+        La pirámide de biomasa de un ecosistema acuático marino puede parecer "invertida" si solo observamos la biomasa instantánea del fitoplancton. Sin embargo, su <strong>productividad primaria bruta (PPB)</strong> y <strong>neta (PPN)</strong> son enormes porque el fitoplancton se renueva muy rápido (ciclos de vida cortos, reproducción acelerada). Aunque en un momento dado haya poca biomasa de algas, la cantidad de materia que producen a lo largo del año es mayor que en muchos bosques terrestres. Eso explica por qué el océano puede sostener enormes poblaciones de peces, focas, pingüinos y ballenas.
+      </p>
+    </div>
+  </div>
+
+  <div class="bloque anim-aparecer">
+    <div class="titulo-seccion">Glosario</div>
+    <div class="glosario-item abierto">
+      <div class="glosario-header" onclick="toggleGlosario(this)">Biomasa</div>
+      <div class="glosario-body">Cantidad total de materia orgánica presente en un ecosistema en un momento dado, expresada en g/m&sup2; o kg/m&sup2;.</div>
+    </div>
+    <div class="glosario-item">
+      <div class="glosario-header" onclick="toggleGlosario(this)">Productividad Primaria Bruta (PPB)</div>
+      <div class="glosario-body">Velocidad a la que los productores (plantas, algas) convierten energía solar en materia orgánica mediante fotosíntesis; representa el total producido.</div>
+    </div>
+    <div class="glosario-item">
+      <div class="glosario-header" onclick="toggleGlosario(this)">Productividad Primaria Neta (PPN)</div>
+      <div class="glosario-body">Materia orgánica que queda disponible después de restar la respiración (R) de los propios productores. PPN = PPB &minus; R.</div>
+    </div>
+    <div class="glosario-item">
+      <div class="glosario-header" onclick="toggleGlosario(this)">Eficiencia Ecológica (Regla del 10%)</div>
+      <div class="glosario-body">Porcentaje de energía que se transfiere de un nivel trófico al siguiente; por regla general, solo el 10% pasa al siguiente nivel.</div>
+    </div>
+  </div>
+
+  <div class="bloque anim-aparecer">
+    <div class="titulo-seccion">Autoevaluación</div>
+    <p style="margin-bottom:1rem; color:#546e7a;">Responde las siguientes preguntas y recibe retroalimentación inmediata.</p>
+
+    <div class="quiz-pregunta" id="q1">
+      <p>1. ¿Qué representa la Productividad Primaria Neta (PPN)?</p>
+      <span class="quiz-opcion" onclick="revisar(1, 'b', this)">a) El total de materia orgánica producida por los productores.</span>
+      <span class="quiz-opcion" onclick="revisar(1, 'b', this)">b) La materia que queda disponible tras restar la respiración (R) de los productores.</span>
+      <span class="quiz-opcion" onclick="revisar(1, 'b', this)">c) La energía solar total que llega al ecosistema.</span>
+      <div class="retro" id="f1"></div>
+    </div>
+
+    <div class="quiz-pregunta" id="q2">
+      <p>2. Si la biomasa de productores en un ecosistema es de 5,000 g/m&sup2;, ¿cuál es la biomasa aproximada esperada para los consumidores secundarios aplicando la regla del 10%?</p>
+      <span class="quiz-opcion" onclick="revisar(2, 'b', this)">a) 500 g/m&sup2;</span>
+      <span class="quiz-opcion" onclick="revisar(2, 'b', this)">b) 50 g/m&sup2;</span>
+      <span class="quiz-opcion" onclick="revisar(2, 'b', this)">c) 5 g/m&sup2;</span>
+      <div class="retro" id="f2"></div>
+    </div>
+
+    <div class="quiz-pregunta" id="q3">
+      <p>3. ¿Por qué la biomasa instantánea del fitoplancton es baja, pero su productividad puede ser muy alta?</p>
+      <span class="quiz-opcion" onclick="revisar(3, 'a', this)">a) Porque se reproduce y renueva extremadamente rápido.</span>
+      <span class="quiz-opcion" onclick="revisar(3, 'a', this)">b) Porque no realiza fotosíntesis y consume poca energía.</span>
+      <span class="quiz-opcion" onclick="revisar(3, 'a', this)">c) Porque tiene una biomasa acumulada muy grande en el fondo marino.</span>
+      <div class="retro" id="f3"></div>
+    </div>
+
+    <div class="quiz-pregunta" id="q4">
+      <p>4. Aproximadamente, ¿qué porcentaje de la energía de un nivel trófico se transfiere al siguiente nivel?</p>
+      <span class="quiz-opcion" onclick="revisar(4, 'b', this)">a) 50%</span>
+      <span class="quiz-opcion" onclick="revisar(4, 'b', this)">b) 10%</span>
+      <span class="quiz-opcion" onclick="revisar(4, 'b', this)">c) 90%</span>
+      <div class="retro" id="f4"></div>
+    </div>
+
+    <div class="quiz-pregunta" id="q5">
+      <p>5. ¿Cuál es la función principal de los organismos desintegradores (hongos, bacterias, detritívoros) en la cadena trófica?</p>
+      <span class="quiz-opcion" onclick="revisar(5, 'a', this)">a) Reciclar materia orgánica muerta y devolver nutrientes al suelo o al agua.</span>
+      <span class="quiz-opcion" onclick="revisar(5, 'a', this)">b) Actuar como depredadores tope que controlan a todos los demás niveles.</span>
+      <span class="quiz-opcion" onclick="revisar(5, 'a', this)">c) Producir su propia energía solar como productores secundarios.</span>
+      <div class="retro" id="f5"></div>
+    </div>
+  </div>
+
+  <div class="bloque">
+    <div class="titulo-seccion">Referencias</div>
+    <p style="font-size:0.85rem; line-height:1.7; color:#546e7a;">
+      Odum, E. P. (1971). <em>Fundamentals of ecology</em> (3rd ed.). W. B. Saunders. https://doi.org/10.2307/1934398<br>
+      Whittaker, R. H. (1975). <em>Communities and ecosystems</em> (2nd ed.). Macmillan.<br>
+      Likens, G. E. (1992). <em>The ecosystem approach: Its use and abuse</em>. Ecology Institute.<br>
+      DGETI. (2017). <em>Programa de estudios de la asignatura Ecología</em>. Subsecretaría de Educación Media Superior, SEP.<br>
+      Campbell, N. A., & Reece, J. B. (2007). <em>Biología</em> (7ma ed.). Pearson Educación. (Capítulo 54: Ecosistemas).
+    </p>
+  </div>
+
+</div>
+
+<footer>
+  <p><strong>LAB. VIRTUAL ALVAREZ 2026</strong> &middot; CETIS 43 &middot; Biología: Enrique Torres Alvarez</p>
+  <p>Recurso educativo autónomo para el componente de Ecología &middot; DGETI</p>
+</footer>
+
+<script>
+  const ecosistemas = {
+    terrestre: {
+      nombre: "Selva Baja Caducifolia (Reserva Sierra Monte Negro, Morelos)",
+      base: 10000, max: 20000, min: 1000, unidad: "g/m²",
+      niveles: [
+        { clave:"prod", nombre:"Productores", emoji:"🌿", orgs:"Mezquite, cazahuate, palo dulce, cuajiote (Bursera), guaje, acacia, ceiba", clase:"n-productores", colorCanica:"prod" },
+        { clave:"c1", nombre:"Consumidores Primarios", emoji:"🦌", orgs:"Venado cola blanca, teporingo, conejo, armadillo, iguana, zorrillo", clase:"n-c1", colorCanica:"c1" },
+        { clave:"c2", nombre:"Consumidores Secundarios", emoji:"🦊", orgs:"Gato montés, coyote, zorra, halconcito, tejón, coatí", clase:"n-c2", colorCanica:"c2" },
+        { clave:"c3", nombre:"Consumidores Terciarios", emoji:"🦅", orgs:"Águila real, puma, zopilote (como necrófago)", clase:"n-c3", colorCanica:"c3" },
+        { clave:"des", nombre:"Desintegradores", emoji:"🍄", orgs:"Hongos, bacterias del suelo, lombrices, escarabajos peloteros, zopilotes", clase:"n-des", colorCanica:null }
+      ]
+    },
+    acuatico: {
+      nombre: "Ecosistema Marino (Hemisferio Sur)",
+      base: 100, max: 1000, min: 10, unidad: "g/m²",
+      niveles: [
+        { clave:"prod", nombre:"Productores", emoji:"🌿", orgs:"Fitoplancton, algas marinas, diatomeas", clase:"n-productores", colorCanica:"prod" },
+        { clave:"c1", nombre:"Consumidores Primarios", emoji:"🦐", orgs:"Zooplancton, krill, anchoas (larvas y juveniles)", clase:"n-c1", colorCanica:"c1" },
+        { clave:"c2", nombre:"Consumidores Secundarios", emoji:"🐟", orgs:"Sardinas, anchoas adultas, calamar, merluza", clase:"n-c2", colorCanica:"c2" },
+        { clave:"c3", nombre:"Consumidores Terciarios", emoji:"🦈", orgs:"Foca, pingüino emperador, orca, tiburón", clase:"n-c3", colorCanica:"c3" },
+        { clave:"des", nombre:"Desintegradores", emoji:"🦀", orgs:"Bacterias heterótrofas marinas, poliquetos, cangrejos carroñeros, detritívoros bentónicos", clase:"n-des", colorCanica:null }
+      ]
+    }
+  };
+
+  const presets = {
+    desierto: { nombre: "Desierto", ppb: 400, r: 300 },
+    tundra: { nombre: "Tundra", ppb: 200, r: 150 },
+    pastizal: { nombre: "Pastizal / Pradera", ppb: 2000, r: 800 },
+    matorral: { nombre: "Matorral xerófilo (Valle de Tehuacán)", ppb: 2500, r: 1500 },
+    bosque: { nombre: "Bosque templado", ppb: 12000, r: 6000 },
+    selva: { nombre: "Selva baja caducifolia (Monte Negro)", ppb: 18000, r: 9000 },
+    marino: { nombre: "Ecosistema marino costero", ppb: 20000, r: 10000 }
+  };
+
+  let modo = 'terrestre';
+  let estado = { terrestre: 10000, acuatico: 100 };
+
+  function cambiarModo(nuevo) {
+    modo = nuevo;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+    document.getElementById('tab-'+nuevo).classList.add('activo');
+
+    const slider = document.getElementById('controlSlider');
+    const caja = document.getElementById('cajaSlider');
+    const etiqueta = document.getElementById('etiquetaSlider');
+
+    if(modo==='terrestre'){
+      caja.style.display='block';
+      slider.max=ecosistemas.terrestre.max; slider.min=ecosistemas.terrestre.min; slider.value=estado.terrestre;
+      etiqueta.textContent='Ajusta la biomasa de productores en la Selva Baja Caducifolia de Monte Negro';
+    } else if(modo==='acuatico'){
+      caja.style.display='block';
+      slider.max=ecosistemas.acuatico.max; slider.min=ecosistemas.acuatico.min; slider.value=estado.acuatico;
+      etiqueta.textContent='Ajusta la biomasa de productores en el ecosistema marino';
+    } else {
+      caja.style.display='none';
+    }
+    actualizarSim();
+  }
+
+  function calcularNiveles(base) {
+    let actual = base;
+    const datos = [];
+    datos.push({ nivel:'Productores', bio:actual, pct:100 });
+    actual *= 0.10;
+    datos.push({ nivel:'C1', bio:actual, pct:10 });
+    actual *= 0.10;
+    datos.push({ nivel:'C2', bio:actual, pct:10 });
+    actual *= 0.10;
+    datos.push({ nivel:'C3', bio:actual, pct:10 });
+    datos.push({ nivel:'Des', bio:null, pct:null });
+    return datos;
+  }
+
+  function renderColumna(claveEco) {
+    const eco = ecosistemas[claveEco];
+    const base = estado[claveEco];
+    const datos = calcularNiveles(base);
+
+    let html = '<div class="sim-columna">';
+    html += '<div class="sim-titulo">'+eco.nombre+'</div>';
+
+    // Pirámide: barras horizontales con badge FUERA de la barra
+    html += '<div class="piramide">';
+    eco.niveles.forEach((niv, idx) => {
+      const d = datos[idx];
+      let badge = '';
+      if(niv.clave!=='des') {
+        badge = '<div class="nivel-badge">'+d.bio.toFixed(1)+' '+eco.unidad+'</div>';
+      } else {
+        badge = '<div class="nivel-badge">Reciclaje</div>';
+      }
+      html += '<div class="nivel-fila">';
+      html += '<div class="nivel-trofico '+niv.clase+'">';
+      html += '<div class="emoji-nivel">'+niv.emoji+'</div>';
+      html += '<div class="nombre-nivel">'+niv.nombre+'</div>';
+      html += '</div>';
+      html += badge;
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // Detalle de organismos separado
+    html += '<div class="detalle-org">';
+    html += '<h5>Organismos por nivel</h5>';
+    html += '<ul>';
+    eco.niveles.forEach((niv, idx) => {
+      const d = datos[idx];
+      const bio = niv.clave==='des' ? 'Variable' : d.bio.toFixed(2)+' '+eco.unidad;
+      html += '<li><strong>'+niv.emoji+' '+niv.nombre+':</strong> '+niv.orgs+' <em style="color:#78909c">('+bio+')</em></li>';
+    });
+    html += '</ul>';
+    html += '</div>';
+
+    // Canicas de energía
+    html += '<div class="canicas-area">';
+    html += '<div class="canicas-titulo">Las Canicas de Energía</div>';
+    html += '<div class="canicas-explica">Imagina que los productores reciben 100 canicas de energía solar. Al pasar al siguiente nivel, solo se transfieren 10. Es la regla del 10% hecha bolitas.</div>';
+
+    const configs = [
+      { cant: 100, claseGrid: '', label: '100 canicas' },
+      { cant: 10, claseGrid: 'c1', label: '10 canicas' },
+      { cant: 3, claseGrid: 'c2', label: '~3 canicas' },
+      { cant: 1, claseGrid: 'c3', label: '~1 canica' }
+    ];
+    eco.niveles.slice(0,4).forEach((niv, idx) => {
+      const cfg = configs[idx];
+      html += '<div class="nivel-canica">';
+      html += '<div class="canica-leyenda">'+niv.emoji+' '+niv.nombre+'<br><span style="font-size:0.75rem;color:#78909c">'+cfg.label+'</span></div>';
+      html += '<div class="canica-grid '+cfg.claseGrid+'">';
+      for(let i=0;i<cfg.cant;i++){
+        html += '<div class="canica '+niv.colorCanica+'"></div>';
+      }
+      html += '</div>';
+      html += '</div>';
+      if(idx < 3) html += '<div class="flecha-energia">&darr;</div>';
+    });
+    html += '</div>';
+
+    // Tabla desplegable
+    html += '<button class="tabla-toggle" onclick="toggleTabla(this)">Ver tabla de datos exactos</button>';
+    html += '<div class="tabla-datos">';
+    html += '<table><thead><tr><th>Nivel</th><th>Organismos</th><th>Biomasa</th><th>% Transferido</th></tr></thead><tbody>';
+    eco.niveles.forEach((niv, idx) => {
+      const d = datos[idx];
+      const bio = niv.clave==='des' ? 'Variable' : d.bio.toFixed(2)+' '+eco.unidad;
+      const pct = niv.clave==='des' ? '&mdash;' : (idx===0 ? 'Base 100%' : '~10% del anterior');
+      html += '<tr><td>'+niv.emoji+' '+niv.nombre+'</td><td>'+niv.orgs+'</td><td>'+bio+'</td><td>'+pct+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function toggleTabla(btn) {
+    const tabla = btn.nextElementSibling;
+    tabla.classList.toggle('abierta');
+    btn.textContent = tabla.classList.contains('abierta') ? 'Ocultar tabla de datos' : 'Ver tabla de datos exactos';
+  }
+
+  function actualizarSim() {
+    const slider = document.getElementById('controlSlider');
+    const texto = document.getElementById('textoValor');
+    const area = document.getElementById('areaSimulacion');
+
+    if(modo==='terrestre') estado.terrestre = parseInt(slider.value);
+    if(modo==='acuatico') estado.acuatico = parseInt(slider.value);
+
+    texto.textContent = (modo==='terrestre'? estado.terrestre : (modo==='acuatico'? estado.acuatico : '')).toLocaleString() + ' g/m²';
+
+    let html = '';
+    if(modo==='terrestre') html += renderColumna('terrestre');
+    else if(modo==='acuatico') html += renderColumna('acuatico');
+    else if(modo==='comparar'){
+      html += '<div style="display:flex; gap:2rem; flex-wrap:wrap; justify-content:center; width:100%;">';
+      html += renderColumna('terrestre');
+      html += renderColumna('acuatico');
+      html += '</div>';
+    }
+    area.innerHTML = html;
+
+    document.querySelectorAll('.canica').forEach((c,i)=>{
+      c.style.animationDelay = (i*0.005)+'s';
+    });
+  }
+
+  function precargarEco(letra) {
+    const select = document.getElementById('eco'+letra);
+    const key = select.value;
+    if(!key) return;
+    const p = presets[key];
+    document.getElementById('ppb'+letra).value = p.ppb;
+    document.getElementById('r'+letra).value = p.r;
+    document.getElementById('titulo'+letra).textContent = p.nombre;
+    compararPPN();
+  }
+
+  function compararPPN() {
+    const ppbA = parseFloat(document.getElementById('ppbA').value);
+    const rA = parseFloat(document.getElementById('rA').value);
+    const ppbB = parseFloat(document.getElementById('ppbB').value);
+    const rB = parseFloat(document.getElementById('rB').value);
+    const frase = document.getElementById('fraseComparativa');
+    const maxTubo = 200;
+
+    if(isNaN(ppbA) || isNaN(rA) || isNaN(ppbB) || isNaN(rB) || ppbA<=0 || ppbB<=0) {
+      frase.innerHTML = 'Ingresa valores válidos para ambos ecosistemas.';
+      return;
+    }
+    if(rA > ppbA || rB > ppbB) {
+      frase.innerHTML = '<span style="color:#c62828">⚠️ La respiración no puede ser mayor que la PPB en ningún ecosistema.</span>';
+      return;
+    }
+
+    const ppnA = ppbA - rA;
+    const ppnB = ppbB - rB;
+    const maxVal = Math.max(ppbA, ppbB, 1);
+
+    setLiquido('liqPPB_A', (ppbA/maxVal)*maxTubo, 'valPPB_A', ppbA);
+    setLiquido('liqR_A', (rA/maxVal)*maxTubo, 'valR_A', rA);
+    setLiquido('liqPPN_A', (ppnA/maxVal)*maxTubo, 'valPPN_A', ppnA);
+
+    setLiquido('liqPPB_B', (ppbB/maxVal)*maxTubo, 'valPPB_B', ppbB);
+    setLiquido('liqR_B', (rB/maxVal)*maxTubo, 'valR_B', rB);
+    setLiquido('liqPPN_B', (ppnB/maxVal)*maxTubo, 'valPPN_B', ppnB);
+
+    let explica = '';
+    if(ppnA > ppnB) {
+      explica = 'El Ecosistema A es más productivo en términos de materia disponible (PPN). Tiene mayor productividad neta.';
+    } else if(ppnB > ppnA) {
+      explica = 'El Ecosistema B es más productivo en términos de materia disponible (PPN). Tiene mayor productividad neta.';
+    } else {
+      explica = 'Ambos ecosistemas tienen la misma productividad neta (PPN). La materia disponible para los demás seres vivos es equivalente.';
+    }
+
+    frase.innerHTML = '<div style="display:flex; gap:2rem; justify-content:center; flex-wrap:wrap;">' +
+      '<div><strong style="color:var(--verde-osc);">PPN A:</strong> '+ppnA.toLocaleString(undefined,{maximumFractionDigits:2})+' g/m²/año</div>' +
+      '<div><strong style="color:var(--aqua-osc);">PPN B:</strong> '+ppnB.toLocaleString(undefined,{maximumFractionDigits:2})+' g/m²/año</div>' +
+      '</div><span style="font-size:0.95rem; color:#546e7a; margin-top:0.5rem; display:block;">'+explica+'</span>';
+  }
+
+  function setLiquido(id, altura, valId, valor) {
+    document.getElementById(id).style.height = altura+'px';
+    document.getElementById(valId).textContent = valor ? valor.toLocaleString(undefined,{maximumFractionDigits:0}) : 0;
+  }
+
+  function toggleGlosario(header) {
+    header.parentElement.classList.toggle('abierto');
+  }
+
+  const respuestasQuiz = {
+    1: { ok:'b', texto:'Correcto: La PPN es la materia que queda después de restar la respiración de los productores. PPN = PPB − R.' },
+    2: { ok:'b', texto:'Correcto: 5,000 → 500 (C1) → 50 (C2). Se aplican dos veces la regla del 10%.' },
+    3: { ok:'a', texto:'Correcto: El fitoplancton tiene ciclos de vida muy cortos; se reproduce tan rápido que produce más materia que un bosque a pesar de su baja biomasa instantánea.' },
+    4: { ok:'b', texto:'Correcto: La eficiencia ecológica promedio es aproximadamente el 10%, aunque puede variar entre 5% y 20% según el ecosistema.' },
+    5: { ok:'a', texto:'Correcto: Los desintegradores reciclan materia muerta y devuelven nutrientes inorgánicos al suelo o al agua, permitiendo que los productores vuelvan a crecer.' }
+  };
+
+  function revisar(pregunta, opcion, elemento) {
+    const contenedor = document.getElementById('q'+pregunta);
+    const opciones = contenedor.querySelectorAll('.quiz-opcion');
+    const retro = document.getElementById('f'+pregunta);
+    const r = respuestasQuiz[pregunta];
+
+    opciones.forEach(op => { op.style.pointerEvents='none'; op.classList.remove('bien','mal'); });
+
+    if(opcion === r.ok){
+      elemento.classList.add('bien');
+      retro.innerHTML = '✅ '+r.texto;
+      retro.className = 'retro bien show';
+      lanzarConfeti(elemento);
+    } else {
+      elemento.classList.add('mal');
+      opciones.forEach(op => {
+        if(op.getAttribute('onclick').includes("'"+r.ok+"'")) op.classList.add('bien');
+      });
+      retro.innerHTML = '❌ Incorrecto. La respuesta correcta es la opción <strong>'+r.ok+'</strong>. '+r.texto;
+      retro.className = 'retro mal show';
+    }
+  }
+
+  function lanzarConfeti(origen) {
+    const box = document.getElementById('confetiBox');
+    box.classList.add('activo');
+    const colores = ['#ffca28','#ff9800','#4caf50','#00bcd4','#ec407a','#ab47bc'];
+    for(let i=0;i<40;i++){
+      const c = document.createElement('div');
+      c.className = 'confeti';
+      c.style.left = Math.random()*100 + 'vw';
+      c.style.background = colores[Math.floor(Math.random()*colores.length)];
+      c.style.width = (6+Math.random()*8)+'px';
+      c.style.height = (6+Math.random()*8)+'px';
+      c.style.animationDuration = (2+Math.random()*2)+'s';
+      c.style.animationDelay = (Math.random()*0.5)+'s';
+      box.appendChild(c);
+      setTimeout(()=> c.remove(), 4500);
+    }
+    setTimeout(()=> box.classList.remove('activo'), 4500);
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    actualizarSim();
+    compararPPN();
+  });
+</script>
+
+</body>
+</html>
